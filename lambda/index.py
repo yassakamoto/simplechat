@@ -4,6 +4,7 @@ import os
 import boto3
 import re  # 正規表現モジュールをインポート
 from botocore.exceptions import ClientError
+import requests  # ✅ 追加
 
 
 # Lambda コンテキストからリージョンを抽出する関数
@@ -15,19 +16,22 @@ def extract_region_from_arn(arn):
     return "us-east-1"  # デフォルト値
 
 # グローバル変数としてクライアントを初期化（初期値）
-bedrock_client = None
+# ✅bedrock_client = None
 
 # モデルID
-MODEL_ID = os.environ.get("MODEL_ID", "us.amazon.nova-lite-v1:0")
+# ✅MODEL_ID = os.environ.get("MODEL_ID", "us.amazon.nova-lite-v1:0")
+
+# ✅ FastAPIのエンドポイント（環境変数にしておくと後で変更しやすい）
+FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://c51b-34-125-20-78.ngrok-free.app/generate")
 
 def lambda_handler(event, context):
     try:
         # コンテキストから実行リージョンを取得し、クライアントを初期化
-        global bedrock_client
-        if bedrock_client is None:
-            region = extract_region_from_arn(context.invoked_function_arn)
-            bedrock_client = boto3.client('bedrock-runtime', region_name=region)
-            print(f"Initialized Bedrock client in region: {region}")
+        ##global bedrock_client
+        ##if bedrock_client is None:
+        ##    region = extract_region_from_arn(context.invoked_function_arn)
+        ##    bedrock_client = boto3.client('bedrock-runtime', region_name=region)
+        ##    print(f"Initialized Bedrock client in region: {region}")
         
         print("Received event:", json.dumps(event))
         
@@ -43,7 +47,7 @@ def lambda_handler(event, context):
         conversation_history = body.get('conversationHistory', [])
         
         print("Processing message:", message)
-        print("Using model:", MODEL_ID)
+        ##print("Using model:", MODEL_ID)
         
         # 会話履歴を使用
         messages = conversation_history.copy()
@@ -82,32 +86,27 @@ def lambda_handler(event, context):
         
         print("Calling Bedrock invoke_model API with payload:", json.dumps(request_payload))
         
-        # invoke_model APIを呼び出し
+        # invoke_model APIを呼び出し・・・の代わりに、FastAPI呼出しに変更
         ##response = bedrock_client.invoke_model(
         ##    modelId=MODEL_ID,
         ##    body=json.dumps(request_payload),
         ##    contentType="application/json"
         ##)
-        ##Write me!--------------------------------
-        import requests  # ファイル冒頭に追加
-        # FastAPIの公開URL（ngrokで提供されたURL）
-        FASTAPI_URL = "https://c51b-34-125-20-78.ngrok-free.app/generate"
         # POSTリクエストでFastAPIにメッセージを送る
         response = requests.post(
             FASTAPI_URL,
             json=request_payload,  # FastAPIに渡すリクエストペイロード
-            timeout=30  # タイムアウト設定（適宜調整）
+            timeout=60  # タイムアウト設定（適宜調整）
         )
         if response.status_code != 200:
             raise Exception(f"LLM API error: {response.status_code} - {response.text}")
-        ##------------------------------------------
+    
      
         # レスポンスを解析
         ##response_body = json.loads(response['body'].read())
-        ##Write me!---------------------------------
-        response_body = response.json()  # FastAPIからのレスポンスをJSONとして取得
-        ##------------------------------------------      
-      
+        
+        response_body = response.json()  #追加！ FastAPIからのレスポンスをJSONとして取得
+              
         print("Bedrock response:", json.dumps(response_body, default=str))
         
         # 応答の検証
