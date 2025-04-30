@@ -6,7 +6,7 @@ import urllib.request
 import urllib.error
 
 # FastAPI のエンドポイント（環境変数から取得、デフォルトあり）
-FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://your-ngrok-url.ngrok-free.app/generate")
+FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://c51b-34-125-20-78.ngrok-free.app/generate")
 
 def lambda_handler(event, context):
     try:
