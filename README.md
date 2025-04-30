@@ -1,3 +1,4 @@
+同じことが演習Day2のパワポの１５８ページあたりに書いてるのでそちらに従って。Temporaryディレクトリとやらを最初にCloudshellで作らないと凍ります。
 # Bedrock Chatbot with Cognito Authentication
 
 Amazon Bedrock を使用したチャットボットアプリケーションで、Amazon Cognito による認証機能を備えています。
