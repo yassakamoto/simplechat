@@ -4,7 +4,8 @@ import os
 import boto3
 import re  # 正規表現モジュールをインポート
 from botocore.exceptions import ClientError
-import requests  # ✅ 追加
+import urllib.request # ✅ 追加
+import urllib.error # ✅ 追加
 
 
 # Lambda コンテキストからリージョンを抽出する関数
@@ -84,7 +85,7 @@ def lambda_handler(event, context):
             }
         }
         
-        print("Calling Bedrock invoke_model API with payload:", json.dumps(request_payload))
+        print("Calling FastAPI (i/o Bedrock invoke_model API) with payload:", json.dumps(request_payload))
         
         # invoke_model APIを呼び出し・・・の代わりに、FastAPI呼出しに変更
         ##response = bedrock_client.invoke_model(
@@ -92,22 +93,25 @@ def lambda_handler(event, context):
         ##    body=json.dumps(request_payload),
         ##    contentType="application/json"
         ##)
-        # POSTリクエストでFastAPIにメッセージを送る
-        response = requests.post(
-            FASTAPI_URL,
-            json=request_payload,  # FastAPIに渡すリクエストペイロード
-            timeout=60  # タイムアウト設定（適宜調整）
-        )
-        if response.status_code != 200:
-            raise Exception(f"LLM API error: {response.status_code} - {response.text}")
-    
-     
+        ##if response.status_code != 200:
+        ##    raise Exception(f"LLM API error: {response.status_code} - {response.text}")      
         # レスポンスを解析
         ##response_body = json.loads(response['body'].read())
-        
-        response_body = response.json()  #追加！ FastAPIからのレスポンスをJSONとして取得
+        ##print("Bedrock response:", json.dumps(response_body, default=str))
+
+        ## urllib.request を使った POST リクエスト
+        req = urllib.request.Request(
+            url=FASTAPI_URL,
+            data=json.dumps(request_payload).encode('utf-8'),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as res:
+            response_body = json.loads(res.read().decode("utf-8"))
+
+        print("FastAPI response:", json.dumps(response_body, default=str))
               
-        print("Bedrock response:", json.dumps(response_body, default=str))
         
         # 応答の検証
         if not response_body.get('output') or not response_body['output'].get('message') or not response_body['output']['message'].get('content'):
