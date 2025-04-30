@@ -83,14 +83,31 @@ def lambda_handler(event, context):
         print("Calling Bedrock invoke_model API with payload:", json.dumps(request_payload))
         
         # invoke_model APIを呼び出し
-        response = bedrock_client.invoke_model(
-            modelId=MODEL_ID,
-            body=json.dumps(request_payload),
-            contentType="application/json"
+        ##response = bedrock_client.invoke_model(
+        ##    modelId=MODEL_ID,
+        ##    body=json.dumps(request_payload),
+        ##    contentType="application/json"
+        ##)
+        ##Write me!--------------------------------
+        import requests  # ファイル冒頭に追加
+        # FastAPIの公開URL（ngrokで提供されたURL）
+        FASTAPI_URL = "https://c51b-34-125-20-78.ngrok-free.app/generate"
+        # POSTリクエストでFastAPIにメッセージを送る
+        response = requests.post(
+            FASTAPI_URL,
+            json=request_payload,  # FastAPIに渡すリクエストペイロード
+            timeout=30  # タイムアウト設定（適宜調整）
         )
-        
+        if response.status_code != 200:
+            raise Exception(f"LLM API error: {response.status_code} - {response.text}")
+        ##------------------------------------------
+     
         # レスポンスを解析
-        response_body = json.loads(response['body'].read())
+        ##response_body = json.loads(response['body'].read())
+        ##Write me!---------------------------------
+        response_body = response.json()  # FastAPIからのレスポンスをJSONとして取得
+        ##------------------------------------------      
+      
         print("Bedrock response:", json.dumps(response_body, default=str))
         
         # 応答の検証
