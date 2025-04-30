@@ -1,17 +1,18 @@
+#提出時のバージョン
 import json
 import os
 import re
 import urllib.request
 import urllib.error
 
-# FastAPI のエンドポイント（ngrok など）
-FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://c51b-34-125-20-78.ngrok-free.app/generate")
+# FastAPI のエンドポイント（環境変数から取得、デフォルトあり）
+FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://your-ngrok-url.ngrok-free.app/generate")
 
 def lambda_handler(event, context):
     try:
         print("Received event:", json.dumps(event))
 
-        # ユーザー情報（Cognito経由の場合）
+        # Cognitoで認証されたユーザー情報を取得（任意）
         user_info = None
         if 'requestContext' in event and 'authorizer' in event['requestContext']:
             user_info = event['requestContext']['authorizer']['claims']
@@ -29,13 +30,13 @@ def lambda_handler(event, context):
             "content": message
         })
 
-        # Bedrock互換形式のペイロード構築
-        bedrock_messages = []
-        for msg in messages:
-            bedrock_messages.append({
+        # LLMに渡すペイロード（Bedrock互換形式）
+        bedrock_messages = [
+            {
                 "role": msg["role"],
                 "content": [{"text": msg["content"]}]
-            })
+            } for msg in messages
+        ]
 
         request_payload = {
             "messages": bedrock_messages,
@@ -47,9 +48,9 @@ def lambda_handler(event, context):
             }
         }
 
-        print("Calling FastAPI with urllib:", FASTAPI_URL)
+        print("Calling FastAPI with payload:", json.dumps(request_payload))
 
-        # urllibによるPOSTリクエスト
+        # FastAPI へPOST
         req = urllib.request.Request(
             url=FASTAPI_URL,
             data=json.dumps(request_payload).encode("utf-8"),
@@ -60,9 +61,9 @@ def lambda_handler(event, context):
         with urllib.request.urlopen(req, timeout=30) as res:
             response_body = json.loads(res.read().decode("utf-8"))
 
-        print("FastAPI response:", json.dumps(response_body, default=str))
+        print("FastAPI response:", json.dumps(response_body))
 
-        # 応答の確認と抽出
+        # 応答の検証
         if not response_body.get('output') or not response_body['output'].get('message') or not response_body['output']['message'].get('content'):
             raise Exception("No response content from FastAPI")
 
@@ -73,6 +74,7 @@ def lambda_handler(event, context):
             "content": assistant_response
         })
 
+        # レスポンス返却
         return {
             "statusCode": 200,
             "headers": {
