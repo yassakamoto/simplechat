@@ -1,3 +1,109 @@
+import json
+import os
+import re
+import urllib.request
+import urllib.error
+
+# FastAPI のエンドポイント（ngrok など）
+FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://c51b-34-125-20-78.ngrok-free.app/generate")
+
+def lambda_handler(event, context):
+    try:
+        print("Received event:", json.dumps(event))
+
+        # ユーザー情報（Cognito経由の場合）
+        user_info = None
+        if 'requestContext' in event and 'authorizer' in event['requestContext']:
+            user_info = event['requestContext']['authorizer']['claims']
+            print(f"Authenticated user: {user_info.get('email') or user_info.get('cognito:username')}")
+
+        # リクエストボディをパース
+        body = json.loads(event['body'])
+        message = body['message']
+        conversation_history = body.get('conversationHistory', [])
+
+        # 会話履歴を構築
+        messages = conversation_history.copy()
+        messages.append({
+            "role": "user",
+            "content": message
+        })
+
+        # Bedrock互換形式のペイロード構築
+        bedrock_messages = []
+        for msg in messages:
+            bedrock_messages.append({
+                "role": msg["role"],
+                "content": [{"text": msg["content"]}]
+            })
+
+        request_payload = {
+            "messages": bedrock_messages,
+            "inferenceConfig": {
+                "maxTokens": 512,
+                "stopSequences": [],
+                "temperature": 0.7,
+                "topP": 0.9
+            }
+        }
+
+        print("Calling FastAPI with urllib:", FASTAPI_URL)
+
+        # urllibによるPOSTリクエスト
+        req = urllib.request.Request(
+            url=FASTAPI_URL,
+            data=json.dumps(request_payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as res:
+            response_body = json.loads(res.read().decode("utf-8"))
+
+        print("FastAPI response:", json.dumps(response_body, default=str))
+
+        # 応答の確認と抽出
+        if not response_body.get('output') or not response_body['output'].get('message') or not response_body['output']['message'].get('content'):
+            raise Exception("No response content from FastAPI")
+
+        assistant_response = response_body['output']['message']['content'][0]['text']
+
+        messages.append({
+            "role": "assistant",
+            "content": assistant_response
+        })
+
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                "Access-Control-Allow-Methods": "OPTIONS,POST"
+            },
+            "body": json.dumps({
+                "success": True,
+                "response": assistant_response,
+                "conversationHistory": messages
+            })
+        }
+
+    except urllib.error.HTTPError as e:
+        print("HTTPError:", e.code, e.read().decode())
+        return {
+            "statusCode": e.code,
+            "body": json.dumps({"success": False, "error": f"HTTPError {e.code}: {e.reason}"})
+        }
+
+    except Exception as error:
+        print("Error:", str(error))
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"success": False, "error": str(error)})
+        }
+
+
+"""
 # lambda/index.py
 import json
 import os
@@ -9,12 +115,12 @@ import urllib.error # ✅ 追加
 
 
 # Lambda コンテキストからリージョンを抽出する関数
-def extract_region_from_arn(arn):
+##def extract_region_from_arn(arn):
     # ARN 形式: arn:aws:lambda:region:account-id:function:function-name
-    match = re.search('arn:aws:lambda:([^:]+):', arn)
-    if match:
-        return match.group(1)
-    return "us-east-1"  # デフォルト値
+##    match = re.search('arn:aws:lambda:([^:]+):', arn)
+##    if match:
+##        return match.group(1)
+##    return "us-east-1"  # デフォルト値
 
 # グローバル変数としてクライアントを初期化（初期値）
 # ✅bedrock_client = None
@@ -118,7 +224,8 @@ def lambda_handler(event, context):
             raise Exception("No response content from the model")
         
         # アシスタントの応答を取得
-        assistant_response = response_body['output']['message']['content'][0]['text']
+        ##assistant_response = response_body['output']['message']['content'][0]['text']
+        assistant_response = response_body.get('response') or "(no response)"
         
         # アシスタントの応答を会話履歴に追加
         messages.append({
@@ -158,3 +265,4 @@ def lambda_handler(event, context):
                 "error": str(error)
             })
         }
+"""
