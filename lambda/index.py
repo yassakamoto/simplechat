@@ -1,56 +1,33 @@
 #提出時のバージョン
 import json
 import os
-import re
 import urllib.request
 import urllib.error
 
-# FastAPI のエンドポイント（環境変数から取得、デフォルトあり）
-FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://c51b-34-125-20-78.ngrok-free.app/generate")
+# FastAPIの公開URL
+FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://your-ngrok-url.ngrok-free.app/generate")
 
 def lambda_handler(event, context):
     try:
         print("Received event:", json.dumps(event))
 
-        # Cognitoで認証されたユーザー情報を取得（任意）
-        user_info = None
-        if 'requestContext' in event and 'authorizer' in event['requestContext']:
-            user_info = event['requestContext']['authorizer']['claims']
-            print(f"Authenticated user: {user_info.get('email') or user_info.get('cognito:username')}")
-
-        # リクエストボディをパース
+        # Lambda呼び出し時のリクエストボディを解析
         body = json.loads(event['body'])
-        message = body['message']
-        conversation_history = body.get('conversationHistory', [])
+        message = body.get('message')
+        if not message:
+            raise ValueError("Missing 'message' in request body")
 
-        # 会話履歴を構築
-        messages = conversation_history.copy()
-        messages.append({
-            "role": "user",
-            "content": message
-        })
-
-        # LLMに渡すペイロード（Bedrock互換形式）
-        bedrock_messages = [
-            {
-                "role": msg["role"],
-                "content": [{"text": msg["content"]}]
-            } for msg in messages
-        ]
-
+        # FastAPI が期待するリクエスト形式を構築
         request_payload = {
-            "messages": bedrock_messages,
-            "inferenceConfig": {
-                "maxTokens": 512,
-                "stopSequences": [],
-                "temperature": 0.7,
-                "topP": 0.9
-            }
+            "prompt": message,
+            "max_new_tokens": 512,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "do_sample": True
         }
 
-        print("Calling FastAPI with payload:", json.dumps(request_payload))
+        print("Sending to FastAPI:", json.dumps(request_payload))
 
-        # FastAPI へPOST
         req = urllib.request.Request(
             url=FASTAPI_URL,
             data=json.dumps(request_payload).encode("utf-8"),
@@ -58,23 +35,18 @@ def lambda_handler(event, context):
             method="POST"
         )
 
+        # FastAPI へリクエスト送信
         with urllib.request.urlopen(req, timeout=30) as res:
             response_body = json.loads(res.read().decode("utf-8"))
 
         print("FastAPI response:", json.dumps(response_body))
 
-        # 応答の検証
-        if not response_body.get('output') or not response_body['output'].get('message') or not response_body['output']['message'].get('content'):
-            raise Exception("No response content from FastAPI")
+        if "generated_text" not in response_body:
+            raise Exception("No 'generated_text' in response")
 
-        assistant_response = response_body['output']['message']['content'][0]['text']
+        assistant_response = response_body["generated_text"]
 
-        messages.append({
-            "role": "assistant",
-            "content": assistant_response
-        })
-
-        # レスポンス返却
+        # 成功レスポンスを返す
         return {
             "statusCode": 200,
             "headers": {
@@ -85,16 +57,16 @@ def lambda_handler(event, context):
             },
             "body": json.dumps({
                 "success": True,
-                "response": assistant_response,
-                "conversationHistory": messages
+                "response": assistant_response
             })
         }
 
     except urllib.error.HTTPError as e:
-        print("HTTPError:", e.code, e.read().decode())
+        error_message = e.read().decode()
+        print("HTTPError:", e.code, error_message)
         return {
             "statusCode": e.code,
-            "body": json.dumps({"success": False, "error": f"HTTPError {e.code}: {e.reason}"})
+            "body": json.dumps({"success": False, "error": f"HTTPError {e.code}: {error_message}"})
         }
 
     except Exception as error:
