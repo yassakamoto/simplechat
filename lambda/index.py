@@ -5,7 +5,7 @@ import urllib.request
 import urllib.error
 
 # FastAPIの公開URL
-FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://your-ngrok-url.ngrok-free.app/generate")
+FASTAPI_URL = os.environ.get("FASTAPI_URL", "https://3f3c-34-16-161-110.ngrok-free.app/generate")
 
 def lambda_handler(event, context):
     try:
