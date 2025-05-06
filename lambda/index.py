@@ -1,4 +1,8 @@
 #提出時のバージョン
+#FastAPIとLamda.pyの、エンドポイントのデータ形式を合わせるのがミソだった。
+#FastAPI側は、単なる文字列をPOST/generateでJSON形式送っている形だったので、受け取り側のLamda.pyもエンドポイントの形をそろえる必要あり
+#　凹　⇔　凸　みたいな感じ。
+#FastAPIの公開URLは起動ごとに変わるので注意。
 import json
 import os
 import urllib.request
